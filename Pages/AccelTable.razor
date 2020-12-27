@@ -1,0 +1,67 @@
+﻿@page "/acceltable"
+
+@using Blazm.Bluetooth
+@inject BluetoothNavigator navigator
+
+<h1>Accelerometer</h1>
+
+<button class="btn btn-primary" @onclick="Connect">Connect</button>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>X</th>
+            <th>Y</th>
+            <th>Z</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in _Data.Reverse())
+        {
+            <tr>
+                <td></td>
+                <td>@item.X.ToString("f3")</td>
+                <td>@item.Y.ToString("f3")</td>
+                <td>@item.Z.ToString("f3")</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+
+    private Queue<AccelerometerData> _Data = new Queue<AccelerometerData>();
+
+    private class AccelerometerData
+    {
+        public double X { get; set; }
+        public double Y { get; set; }
+        public double Z { get; set; }
+    }
+
+    private async void Connect()
+    {
+        const string accelService = "e95d0753-251d-470a-a062-fa1922dfa9a8";
+        const string accelData = "e95dca4b-251d-470a-a062-fa1922dfa9a8";
+
+        var q = new RequestDeviceQuery();
+        //q.Filters.Add(new Filter() { Services = { accelService } });
+        q.AcceptAllDevices = true;
+        q.OptionalServices.Add(accelService);
+        var device = await navigator.RequestDeviceAsync(q);
+
+        await navigator.SetupNotifyAsync(device.Id, accelService, accelData);
+        navigator.Notification += Value_Notification;
+    }
+
+    private void Value_Notification(object sender, CharacteristicEventArgs e)
+    {
+        var rawData = e.Value.ToArray();
+        var accelData = new AccelerometerData { X = BitConverter.ToInt16(rawData, 0) / 1000.0, Y = BitConverter.ToInt16(rawData, 2) / 1000.0, Z = BitConverter.ToInt16(rawData, 4) / 1000.0, };
+        _Data.Enqueue(accelData);
+        while (_Data.Count > 10) _Data.Dequeue();
+
+        StateHasChanged();
+    }
+}
